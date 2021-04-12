@@ -1,0 +1,1 @@
+CREATE TABLE student (id integer primary key,firstname varchar(255) NOT NULL);

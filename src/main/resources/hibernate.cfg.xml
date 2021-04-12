@@ -1,0 +1,22 @@
+<hibernate-configuration>
+    <session-factory>
+        <property name="connection.driver_class">org.h2.Driver</property>
+        <property name="connection.url">jdbc:h2:~/test;DB_CLOSE_DELAY=-1</property>
+        <property name="connection.username">sa</property>
+        <property name="connection.password"></property>
+        <property name="dialect">org.hibernate.dialect.H2Dialect</property>
+        <property name="show_sql">true</property>
+        <property name="format_sql">true</property>
+        <!-- https://thorben-janssen.com/standardized-schema-generation-data-loading-jpa-2-1/ -->
+
+        <property name="javax.persistence.schema-generation.database.action">drop-and-create</property>
+        <!--<property name="javax.persistence.schema-generation.create-source">script</property> -->
+        <property name="javax.persistence.schema-generation.create-source">metadata</property>
+        <!--<property name="javax.persistence.schema-generation.create-script-source">schema-generation.sql</property>-->
+        <property name="javax.persistence.schema-generation.drop-source">metadata</property>
+        <!--<property name="javax.persistence.schema-generation.drop-script-source">schema-drop.sql</property>-->
+
+        <!--<property name="javax.persistence.sql-load-script-source">data.sql</property>-->
+
+    </session-factory>
+</hibernate-configuration>
