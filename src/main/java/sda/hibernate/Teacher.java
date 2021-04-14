@@ -7,4 +7,11 @@ import javax.persistence.Entity;
 public class Teacher {
     @EmbeddedId
     private NamePk name;
+
+    public Teacher(NamePk name) {
+        this.name = name;
+    }
+
+    Teacher() {
+    }
 }
