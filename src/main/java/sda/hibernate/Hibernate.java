@@ -9,8 +9,9 @@ import org.hibernate.query.Query;
 
 import javax.persistence.NoResultException;
 import java.io.Serializable;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /*
 1.Głowne klasy:
@@ -28,35 +29,182 @@ public class Hibernate {
                 .addAnnotatedClass(Student.class)
                 .addAnnotatedClass(Teacher.class)
                 .addAnnotatedClass(Director.class)
+                .addAnnotatedClass(InvoiceData.class)
+                .addAnnotatedClass(Grade.class)
+                .addAnnotatedClass(Academy.class)
                 .buildSessionFactory()) {
 
-            selects(sessionFactory);
-            inserts(sessionFactory);
+            // selects(sessionFactory);
+
+            // inserts(sessionFactory);
+
+             // updates(sessionFactory);
+
+            // delete(sessionFactory);
+
+            nPlusSelectsProblemsSolvedWithFetch(sessionFactory);
+
+        }
+
+    }
+
+    private static void nPlusSelectsProblemsSolvedWithFetch(SessionFactory sessionFactory) {
+        System.out.println("Before many to many");
+        try (Session session = sessionFactory.openSession()) {
+            Transaction transaction = session.beginTransaction();
+            Student student1 = Student.builder().setFirstName("Ania")
+                    .setLastName("Nowak")
+                    .build();
+
+            session.persist(student1);
+            Grade grade = new Grade(1, student1);
+            Grade grade1 = new Grade(3, student1);
+
+            session.persist(grade);
+            session.persist(grade1);
+
+            Student student2 = Student.builder().setFirstName("Karol")
+                    .setLastName("Nowak")
+                    .build();
+
+            session.persist(student2);
+            Grade grade3 = new Grade(4, student2);
+            Grade grade4 = new Grade(5, student2);
+
+            session.persist(grade3);
+            session.persist(grade4);
+
+            Academy academy = new Academy("SDA", new HashSet<>(Arrays.asList(student1, student2)));
+
+            session.persist(academy);
+
+            transaction.commit();
+        }
+        System.out.println("Before student remove from academy");
+        try (Session session = sessionFactory.openSession()) {
+            Transaction transaction = session.beginTransaction();
+            Student student = session.find(Student.class, 7);
+            Academy academy = session.find(Academy.class, "SDA");
+            academy.getStudents().remove(student);
+
+            transaction.commit();
+        }
+
+        try(Session session = sessionFactory.openSession()){
+            List<Student> students = session.createQuery("SELECT distinct(s) FROM Student s LEFT JOIN FETCH s.grades", Student.class)
+                    // /\ hibernatowy select wyciagnie wszystkie rekordy z tabeli student
+            .getResultList();
+            System.out.println("Students: " + students);
+
+           Map<Integer, OptionalDouble> avgs = students.stream().collect(Collectors.toMap(Student::getId, calculateAvgGradeValue()));
+            System.out.println("Students avgs: " + avgs);
+
+        }
+    }
+
+    private static Function<Student, OptionalDouble> calculateAvgGradeValue() {
+        return s -> s.getGrades().stream().map(Grade::getValue).mapToInt(i -> i).average();
+    }
+
+    private static void delete(SessionFactory sessionFactory) {
+        System.out.println("Before delete");
+        try (Session session = sessionFactory.openSession()) {
+            Student student = session.find(Student.class, 1);
+            Transaction transaction = session.beginTransaction();
+            session.delete(student);
+            transaction.commit();
+            System.out.println("Student 1 deleted");
+
+        }
+    }
+
+    private static void relationManyToOne(SessionFactory sessionFactory) {
+        System.out.println("Before save student with grades");
+        Student student1;
+        try (Session session = sessionFactory.openSession()) {
+            Transaction transaction = session.beginTransaction();
+            student1 = Student.builder()
+                    .setFirstName("Alicja")
+                    .setLastName("Nowak")
+                    // .setGrades(grades)
+                    .build();
+            session.persist(student1);
+            Grade grade1 = new Grade(5, student1);
+            Grade grade2 = new Grade(4, student1);
+            session.persist(grade1);
+            session.persist(grade2);
+            transaction.commit();
+
+        }
+        System.out.println("After save student with grades. Student id: " + student1.getId());
+
+        System.out.println("Before grades remove");
+        try (Session session = sessionFactory.openSession()) {
+            Transaction transaction = session.beginTransaction();
+            Student student2 = session.find(Student.class, student1.getId());
+            System.out.println("Student grade count: " + student2.getGrades().size() + " student2 id: " + student2.getId());
+            student2.getGrades().removeIf(g -> g.getId() == 1);
+            //Grade grade = session.find(Grade.class, student2.getGrades().get(0).getId());
+            // session.delete(grade);
+            transaction.commit();
+
+        }
+        System.out.println("After grades remove");
+    }
+
+    private static void relationOneToOne(SessionFactory sessionFactory) {
+        System.out.println("Before save student with invoice data");
+        Student student;
+        try (Session session = sessionFactory.openSession()) {
+            InvoiceData invoiceData = new InvoiceData("123");
+            Transaction transaction = session.beginTransaction();
+            Address address = new Address("Wrocław", "Piłsudskiego");
+            student = new Student("Paweł", "Kowalski", address, invoiceData);
+            //session.persist(invoiceData); // załatwione przez CascadeType.PERSIST
+            session.persist(student);
+            transaction.commit();
+            System.out.println("Student with invoice data saved");
+        }
+
+        try (Session session = sessionFactory.openSession()) {
+            Student s = session.find(Student.class, student.getId());
+            System.out.println("Student with invoice data: " + s);
+            System.out.println("Invoice data: " + s.getInvoiceData());
+        }
+        Student s;
+        try (Session session = sessionFactory.openSession()) {
+            s = session.find(Student.class, student.getId());
+            System.out.println("Student with invoice data: " + s);
+        }
+        //System.out.println("Invoice data: " + s.getInvoiceData()); - generuje wyjatek could not initialize proxy [sda.hibernate.InvoiceData#123] - no Session
+        // dociaganie danych musi byc w obrebie sesji
+    }
 
 
 
-            try(Session session = sessionFactory.openSession()) {
-                System.out.println("Before update");
-                Transaction transaction = session.beginTransaction();
-                Student student = session.find(Student.class,1);
-                student.setAddress(new Address("Poznan","Głogowska"));
+    private static void updates(SessionFactory sessionFactory) {
+        try (Session session = sessionFactory.openSession()) {
+            System.out.println("Before update");
+            Transaction transaction = session.beginTransaction();
+            Student student = session.find(Student.class, 1);
+            student.setAddress(new Address("Poznań", "Głogowska"));
+            //session.update(student); update automatyczny wyołanie metody niepotrzebne
 
-                transaction.commit();
-            }
+            transaction.commit();
+        }
 
-            Student studentAfterUpdate;
-            try (Session session = sessionFactory.openSession()) {
-                studentAfterUpdate = session.find(Student.class, 1);
-                System.out.println("Student after update: " + studentAfterUpdate);
-            }
+        Student studentAfterUpdate;
+        try (Session session = sessionFactory.openSession()) {
+            studentAfterUpdate = session.find(Student.class, 1);
+            System.out.println("Student after update: " + studentAfterUpdate);
+        }
 
-            System.out.println("Before update in new session");
-            try(Session session = sessionFactory.openSession()) {
-                Transaction transaction = session.beginTransaction();
-                studentAfterUpdate.setAddress(new Address("Kraków","Mickiewicza"));
-                session.update(studentAfterUpdate); // lub session.merge() jesli uzywamy JPA
-                transaction.commit();
-            }
+        System.out.println("Before update in new session");
+        try (Session session = sessionFactory.openSession()) {
+            Transaction transaction = session.beginTransaction();
+            studentAfterUpdate.setAddress(new Address("Kraków", "Mickiewicza"));
+            session.update(studentAfterUpdate); // lub session.merge() jesli uzywamy JPA
+            transaction.commit();
         }
     }
 
